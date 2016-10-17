@@ -19,6 +19,23 @@ function up {
     shift # Remove profile name
   fi
 
+	echo "parameters"
+
+
+	for var in "$@"
+	do
+		_var_command=$(echo "$var" | awk -F'=' '{print $1}')
+  	if [[ -f $DISPATCH_DIR/flags/$_var_command ]]; then
+		  command=$(cat $DISPATCH_DIR/flags/$_var_command)
+			$command $var
+		else
+			#todo need to add this to an array that we send to the run command further down
+		fi
+	done
+
+	echo $@
+	exit 1
+
 	local _profile_dir="$OPENSHIFT_HOME_DIR/profiles/$_profile"
   # TODO: If the cluster is already created, do not provision stuff
 
@@ -286,6 +303,13 @@ function help {
 # Use -gt 0 to consume one or more arguments per pass in the loop (e.g.
 # some arguments don't have a corresponding value to go with it such
 # as in the --default example).
+
+DISPATCH_DIR=$OPENSHIFT_HOME_DIR/commands/
+mkdir -p $DISPATCH_DIR/flags
+for plugin in plugins.d/*.sh; do
+	. $plugin
+done
+
 if [[ $# -gt 0 ]]
 then
    key="$1"
@@ -336,11 +360,18 @@ then
         help
         ;;
       *)
-        # unknown option
-        echo "Unknown option. Show help"
-        help
+				if [[ -f $DISPATCH_DIR/$key ]]; then
+					command=$(cat $DISPATCH_DIR/$key)
+					$command
+				else
+					# unknown option
+					echo "Unknown option. Show help"
+					help
+				fi
         ;;
    esac
 else
    help
 fi
+
+rm -Rf $DISPATCH_DIR
