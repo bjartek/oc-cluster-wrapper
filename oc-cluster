@@ -19,7 +19,7 @@ function up {
     shift # Remove profile name
   fi
 
-	local _profile_dir="$OPENSHIFT_HOME_DIR/profiles/$_profile"
+  local _profile_dir="$OPENSHIFT_HOME_DIR/profiles/$_profile"
   # TODO: If the cluster is already created, do not provision stuff
 
   [[ -d "$_profile_dir" && -f "$_profile_dir/run" ]] && startPreviousCreatedCluster $_profile && exit 0
@@ -40,20 +40,20 @@ oc cluster up --public-hostname '$OC_CLUSTER_PUBLIC_HOSTNAME' \\
 EOF
 
   for var in "$@"; do
-		_var_command=$(echo "$var" | awk -F'=' '{print $1}')
-  	if [[ -f $DISPATCH_DIR/flags/$_var_command ]]; then
-		  command=$(cat $DISPATCH_DIR/flags/$_var_command)
-			$command $_profile_dir $var
-		else
-			#append flags not registered as plugins to the oc cluster up command
-			echo "$var \\" >> $_profile_dir/run
-		fi
-	done
+    _var_command=$(echo "$var" | awk -F'=' '{print $1}')
+    if [[ -f $DISPATCH_DIR/flags/$_var_command ]]; then
+      command=$(cat $DISPATCH_DIR/flags/$_var_command)
+      $command $_profile_dir $var
+    else
+      #append flags not registered as plugins to the oc cluster up command
+      echo "$var \\" >> $_profile_dir/run
+    fi
+  done
 
-	echo "\$@" >> $_profile_dir/run
+  echo "\$@" >> $_profile_dir/run
 
-	if [[ -f $_profile_dir/run_after ]]; then
-	  cat << EOF >> $_profile_dir/run
+  if [[ -f $_profile_dir/run_after ]]; then
+    cat << EOF >> $_profile_dir/run
 
 #need to ensure that we can log in
 while true; do
@@ -63,12 +63,12 @@ done
 
 EOF
     cat $_profile_dir/run_after >> $_profile_dir/run
-	fi
+  fi
 
-	$RESTART_CLUSTER && echo "docker stop origin &> /dev/null && docker start origin &> /dev/null">> $_profile_dir/run
+  $RESTART_CLUSTER && echo "docker stop origin &> /dev/null && docker start origin &> /dev/null">> $_profile_dir/run
   #need to shift all args away if not the source will have them double
   shift $#
-	cat $_profile_dir/run
+  cat $_profile_dir/run
   . $_profile_dir/run
 
   status &> /dev/null  || cleanupClusterAndExit $__profile
@@ -121,7 +121,7 @@ function status {
 # If the cluster is up, it will bring it down and destroy active_profile
 # Otherwise will ask for profile
 function destroy {
-	local _active_profile=$(cat $OPENSHIFT_HOME_DIR/active_profile 2> /dev/null)
+  local _active_profile=$(cat $OPENSHIFT_HOME_DIR/active_profile 2> /dev/null)
   local _profile=${1:-$_active_profile}
 
   [[ $_profile == "" ]] && error_exit echo "You need to specify a profile, or have a running cluster"
@@ -319,7 +319,7 @@ DISPATCH_DIR=$OPENSHIFT_HOME_DIR/commands/
 RESTART_CLUSTER=false
 mkdir -p $DISPATCH_DIR/flags
 for plugin in plugins.d/*.sh; do
-	. $plugin
+  .  $plugin
 done
 
 if [[ $# -gt 0 ]]
@@ -372,14 +372,14 @@ then
         help
         ;;
       *)
-				if [[ -f $DISPATCH_DIR/$key ]]; then
-					command=$(cat $DISPATCH_DIR/$key)
-					$command
-				else
-					# unknown option
-					echo "Unknown option. Show help"
-					help
-				fi
+        if [[ -f $DISPATCH_DIR/$key ]]; then
+          command=$(cat $DISPATCH_DIR/$key)
+          $command
+        else
+          # unknown option
+          echo "Unknown option. Show help"
+          help
+        fi
         ;;
    esac
 else
