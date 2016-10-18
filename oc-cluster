@@ -19,23 +19,6 @@ function up {
     shift # Remove profile name
   fi
 
-	echo "parameters"
-
-
-	for var in "$@"
-	do
-		_var_command=$(echo "$var" | awk -F'=' '{print $1}')
-  	if [[ -f $DISPATCH_DIR/flags/$_var_command ]]; then
-		  command=$(cat $DISPATCH_DIR/flags/$_var_command)
-			$command $var
-		else
-			#todo need to add this to an array that we send to the run command further down
-		fi
-	done
-
-	echo $@
-	exit 1
-
 	local _profile_dir="$OPENSHIFT_HOME_DIR/profiles/$_profile"
   # TODO: If the cluster is already created, do not provision stuff
 
@@ -48,16 +31,44 @@ function up {
 
   mkdir -p $_config_dir $_data_dir $_profile_dir/volume
 
-  tee $_profile_dir/run <<EOF
-oc cluster up --public-hostname '$OC_CLUSTER_PUBLIC_HOSTNAME' \
---host-data-dir '$_data_dir' \
---host-config-dir '$_config_dir' \
---routing-suffix '$OC_CLUSTER_ROUTING_SUFFIX' \
---use-existing-config \
-$@ \$@
+  cat << EOF > $_profile_dir/run
+oc cluster up --public-hostname '$OC_CLUSTER_PUBLIC_HOSTNAME' \\
+--host-data-dir '$_data_dir' \\
+--host-config-dir '$_config_dir' \\
+--routing-suffix '$OC_CLUSTER_ROUTING_SUFFIX' \\
+--use-existing-config \\
 EOF
+
+  for var in "$@"; do
+		_var_command=$(echo "$var" | awk -F'=' '{print $1}')
+  	if [[ -f $DISPATCH_DIR/flags/$_var_command ]]; then
+		  command=$(cat $DISPATCH_DIR/flags/$_var_command)
+			$command $_profile_dir $var
+		else
+			#append flags not registered as plugins to the oc cluster up command
+			echo "$var \\" >> $_profile_dir/run
+		fi
+	done
+
+	echo "\$@" >> $_profile_dir/run
+
+	if [[ -f $_profile_dir/run_after ]]; then
+	  cat << EOF >> $_profile_dir/run
+
+#need to ensure that we can log in
+while true; do
+  oc login -u system:admin && break
+  sleep 1
+done
+
+EOF
+    cat $_profile_dir/run_after >> $_profile_dir/run
+	fi
+
+	$RESTART_CLUSTER && echo "docker stop origin &> /dev/null && docker start origin &> /dev/null">> $_profile_dir/run
   #need to shift all args away if not the source will have them double
   shift $#
+	cat $_profile_dir/run
   . $_profile_dir/run
 
   status &> /dev/null  || cleanupClusterAndExit $__profile
@@ -305,6 +316,7 @@ function help {
 # as in the --default example).
 
 DISPATCH_DIR=$OPENSHIFT_HOME_DIR/commands/
+RESTART_CLUSTER=false
 mkdir -p $DISPATCH_DIR/flags
 for plugin in plugins.d/*.sh; do
 	. $plugin
