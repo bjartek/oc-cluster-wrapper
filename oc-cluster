@@ -39,6 +39,7 @@ oc cluster up --public-hostname '$OC_CLUSTER_PUBLIC_HOSTNAME' \\
 --use-existing-config \\
 EOF
 
+  #we lopp over all arguments to see if they are flags we should dispatch to or stuff that should just be appended to oc cluster up
   for var in "$@"; do
     _var_command=$(echo "$var" | awk -F'=' '{print $1}')
     if [[ -f $DISPATCH_DIR/flags/$_var_command ]]; then
@@ -50,11 +51,14 @@ EOF
     fi
   done
 
+	#we need to add this to run in order to send all arguments to oc cluster up when we run for second time
   echo "\$@" >> $_profile_dir/run
 
+	#if we have any run_after code append it to run. This will include all code from plugins
   if [[ -f $_profile_dir/run_after ]]; then
     cat << EOF >> $_profile_dir/run
 
+#not sure if this is really needed or not. I had some problems with authentication and timing issues
 #need to ensure that we can log in
 while true; do
   oc login -u system:admin && break
@@ -65,6 +69,7 @@ EOF
     cat $_profile_dir/run_after >> $_profile_dir/run
   fi
 
+	#if we are instructed to restart the cluster, we do so 
   $RESTART_CLUSTER && echo "docker stop origin &> /dev/null && docker start origin &> /dev/null">> $_profile_dir/run
   #need to shift all args away if not the source will have them double
   shift $#
@@ -315,9 +320,12 @@ function help {
 # some arguments don't have a corresponding value to go with it such
 # as in the --default example).
 
+#Setting up the dispatch dir that we are using to store how we dispatch stuff
+# a filename in DISPATCH_DIR is a command, the contents of the file is the function to run/evaluate
 DISPATCH_DIR=$OPENSHIFT_HOME_DIR/commands/
 RESTART_CLUSTER=false
 mkdir -p $DISPATCH_DIR/flags
+#source all the plugins
 for plugin in plugins.d/*.sh; do
   .  $plugin
 done
@@ -372,9 +380,11 @@ then
         help
         ;;
       *)
+				#if none of the above commands match look for a file in dispatch dir and dispatch to the contents of the file with all args. 
+				#if bash3 had proper asociative arrays/maps we could have used them.
         if [[ -f $DISPATCH_DIR/$key ]]; then
           command=$(cat $DISPATCH_DIR/$key)
-          $command
+          $command "$@"
         else
           # unknown option
           echo "Unknown option. Show help"
